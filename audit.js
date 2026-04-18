@@ -3,11 +3,12 @@ exports.handler = async function (event, context) {
     return { statusCode: 405, body: "Method Not Allowed" };
   }
 
-  const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
-  if (!ANTHROPIC_API_KEY) {
+  const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+
+  if (!GEMINI_API_KEY) {
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: "API key not configured on server." }),
+      body: JSON.stringify({ error: "Gemini API key not configured." }),
     };
   }
 
@@ -15,23 +16,31 @@ exports.handler = async function (event, context) {
   try {
     body = JSON.parse(event.body);
   } catch (e) {
-    return { statusCode: 400, body: JSON.stringify({ error: "Invalid JSON body." }) };
+    return {
+      statusCode: 400,
+      body: JSON.stringify({ error: "Invalid JSON body." }),
+    };
   }
 
   try {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 2000,
-        messages: body.messages,
-      }),
-    });
+    const prompt = body.messages?.map(m => m.content).join("\n") || "Run audit";
+
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [{ text: prompt }],
+            },
+          ],
+        }),
+      }
+    );
 
     const data = await response.json();
 
@@ -46,7 +55,10 @@ exports.handler = async function (event, context) {
   } catch (err) {
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: "Failed to reach Anthropic API.", detail: err.message }),
+      body: JSON.stringify({
+        error: "Failed to reach Gemini API.",
+        detail: err.message,
+      }),
     };
   }
 };
